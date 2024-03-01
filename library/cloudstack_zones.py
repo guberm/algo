@@ -95,8 +95,7 @@ class AnsibleCloudStackZones(AnsibleCloudStack):
     def get_zones(self):
         args = {}
         if not self.zones:
-            zones = self.query_api('listZones', **args)
-            if zones:
+            if zones := self.query_api('listZones', **args):
                 self.zones = zones
         return self.zones
 

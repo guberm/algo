@@ -126,9 +126,7 @@ class Response(object):
     @property
     def json(self):
         if not self.body:
-            if "body" in self.info:
-                return json.loads(self.info["body"])
-            return None
+            return json.loads(self.info["body"]) if "body" in self.info else None
         try:
             return json.loads(self.body)
         except ValueError:
@@ -173,12 +171,12 @@ def core(module):
     elif state in ('absent'):
         response = rest.delete("floating_ips/{0}".format(ip))
         status_code = response.status_code
-        json_data = response.json
         if status_code == 204:
             module.exit_json(changed=True)
         elif status_code == 404:
             module.exit_json(changed=False)
         else:
+            json_data = response.json
             module.exit_json(changed=False, data=json_data)
 
 

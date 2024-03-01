@@ -88,7 +88,10 @@ def main():
             client = boto3_conn(module, conn_type='client', resource='lightsail',
                                 region=region, endpoint=ec2_url, **aws_connect_kwargs)
         except (botocore.exceptions.ClientError, botocore.exceptions.ValidationError) as e:
-            module.fail_json(msg='Failed while connecting to the lightsail service: %s' % e, exception=traceback.format_exc())
+            module.fail_json(
+                msg=f'Failed while connecting to the lightsail service: {e}',
+                exception=traceback.format_exc(),
+            )
 
         response = client.get_regions(
             includeAvailabilityZones=False
