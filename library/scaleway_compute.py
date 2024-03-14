@@ -191,27 +191,33 @@ def check_image_id(compute_api, image_id):
     if response.ok and response.json:
         image_ids = [image["id"] for image in response.json["images"]]
         if image_id not in image_ids:
-            compute_api.module.fail_json(msg='Error in getting image %s on %s' % (image_id, compute_api.module.params.get('api_url')))
+            compute_api.module.fail_json(
+                msg=f"Error in getting image {image_id} on {compute_api.module.params.get('api_url')}"
+            )
     else:
-        compute_api.module.fail_json(msg="Error in getting images from: %s" % compute_api.module.params.get('api_url'))
+        compute_api.module.fail_json(
+            msg=f"Error in getting images from: {compute_api.module.params.get('api_url')}"
+        )
 
 
 def fetch_state(compute_api, server):
-    compute_api.module.debug("fetch_state of server: %s" % server["id"])
-    response = compute_api.get(path="servers/%s" % server["id"])
+    compute_api.module.debug(f'fetch_state of server: {server["id"]}')
+    response = compute_api.get(path=f'servers/{server["id"]}')
 
     if response.status_code == 404:
         return "absent"
 
     if not response.ok:
-        msg = 'Error during state fetching: (%s) %s' % (response.status_code, response.json)
+        msg = f'Error during state fetching: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
     try:
-        compute_api.module.debug("Server %s in state: %s" % (server["id"], response.json["server"]["state"]))
+        compute_api.module.debug(
+            f'Server {server["id"]} in state: {response.json["server"]["state"]}'
+        )
         return response.json["server"]["state"]
     except KeyError:
-        compute_api.module.fail_json(msg="Could not fetch state in %s" % response.json)
+        compute_api.module.fail_json(msg=f"Could not fetch state in {response.json}")
 
 
 def wait_to_complete_state_transition(compute_api, server):
@@ -227,7 +233,9 @@ def wait_to_complete_state_transition(compute_api, server):
         compute_api.module.debug("We are going to wait for the server to finish its transition")
         if fetch_state(compute_api, server) not in SCALEWAY_TRANSITIONS_STATES:
             compute_api.module.debug("It seems that the server is not in transition anymore.")
-            compute_api.module.debug("Server in state: %s" % fetch_state(compute_api, server))
+            compute_api.module.debug(
+                f"Server in state: {fetch_state(compute_api, server)}"
+            )
             break
         time.sleep(wait_sleep_time)
     else:
@@ -246,14 +254,16 @@ def public_ip_payload(compute_api, public_ip):
     # We check that the IP we want to attach exists, if so its ID is returned
     response = compute_api.get("ips")
     if not response.ok:
-        msg = 'Error during public IP validation: (%s) %s' % (response.status_code, response.json)
+        msg = f'Error during public IP validation: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
     ip_list = []
     try:
         ip_list = response.json["ips"]
     except KeyError:
-        compute_api.module.fail_json(msg="Error in getting the IP information from: %s" % response.json)
+        compute_api.module.fail_json(
+            msg=f"Error in getting the IP information from: {response.json}"
+        )
 
     lookup = [ip["id"] for ip in ip_list]
     if public_ip in lookup:
@@ -281,13 +291,15 @@ def create_server(compute_api, server):
     response = compute_api.post(path="servers", data=data)
 
     if not response.ok:
-        msg = 'Error during server creation: (%s) %s' % (response.status_code, response.json)
+        msg = f'Error during server creation: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
     try:
         target_server = response.json["server"]
     except KeyError:
-        compute_api.module.fail_json(msg="Error in getting the server information from: %s" % response.json)
+        compute_api.module.fail_json(
+            msg=f"Error in getting the server information from: {response.json}"
+        )
 
     wait_to_complete_state_transition(compute_api=compute_api, server=target_server)
 
@@ -307,10 +319,11 @@ def start_server(compute_api, server):
 
 
 def perform_action(compute_api, server, action):
-    response = compute_api.post(path="servers/%s/action" % server["id"],
-                                data={"action": action})
+    response = compute_api.post(
+        path=f'servers/{server["id"]}/action', data={"action": action}
+    )
     if not response.ok:
-        msg = 'Error during server %s: (%s) %s' % (action, response.status_code, response.json)
+        msg = f'Error during server {action}: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
     wait_to_complete_state_transition(compute_api=compute_api, server=server)
@@ -320,9 +333,9 @@ def perform_action(compute_api, server, action):
 
 def remove_server(compute_api, server):
     compute_api.module.debug("Starting remove server strategy")
-    response = compute_api.delete(path="servers/%s" % server["id"])
+    response = compute_api.delete(path=f'servers/{server["id"]}')
     if not response.ok:
-        msg = 'Error during server deletion: (%s) %s' % (response.status_code, response.json)
+        msg = f'Error during server deletion: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
     wait_to_complete_state_transition(compute_api=compute_api, server=server)
@@ -333,23 +346,25 @@ def remove_server(compute_api, server):
 def present_strategy(compute_api, wished_server):
     compute_api.module.debug("Starting present strategy")
     changed = False
-    query_results = find(compute_api=compute_api, wished_server=wished_server, per_page=1)
+    if query_results := find(
+        compute_api=compute_api, wished_server=wished_server, per_page=1
+    ):
+        target_server = query_results[0]
 
-    if not query_results:
+    else:
         changed = True
         if compute_api.module.check_mode:
             return changed, {"status": "A server would be created."}
 
         target_server = create_server(compute_api=compute_api, server=wished_server)
-    else:
-        target_server = query_results[0]
-
     if server_attributes_should_be_changed(compute_api=compute_api, target_server=target_server,
                                            wished_server=wished_server):
         changed = True
 
         if compute_api.module.check_mode:
-            return changed, {"status": "Server %s attributes would be changed." % target_server["id"]}
+            return changed, {
+                "status": f'Server {target_server["id"]} attributes would be changed.'
+            }
 
         target_server = server_change_attributes(compute_api=compute_api, target_server=target_server, wished_server=wished_server)
 
@@ -360,17 +375,19 @@ def absent_strategy(compute_api, wished_server):
     compute_api.module.debug("Starting absent strategy")
     changed = False
     target_server = None
-    query_results = find(compute_api=compute_api, wished_server=wished_server, per_page=1)
-
-    if not query_results:
-        return changed, {"status": "Server already absent."}
-    else:
+    if query_results := find(
+        compute_api=compute_api, wished_server=wished_server, per_page=1
+    ):
         target_server = query_results[0]
 
+    else:
+        return changed, {"status": "Server already absent."}
     changed = True
 
     if compute_api.module.check_mode:
-        return changed, {"status": "Server %s would be made absent." % target_server["id"]}
+        return changed, {
+            "status": f'Server {target_server["id"]} would be made absent.'
+        }
 
     # A server MUST be stopped to be deleted.
     while fetch_state(compute_api=compute_api, server=target_server) != "stopped":
@@ -390,39 +407,43 @@ def absent_strategy(compute_api, wished_server):
         err_msg = 'Error while removing server [{0}: {1}]'.format(response.status_code, response.json)
         compute_api.module.fail_json(msg=err_msg)
 
-    return changed, {"status": "Server %s deleted" % target_server["id"]}
+    return changed, {"status": f'Server {target_server["id"]} deleted'}
 
 
 def running_strategy(compute_api, wished_server):
     compute_api.module.debug("Starting running strategy")
     changed = False
-    query_results = find(compute_api=compute_api, wished_server=wished_server, per_page=1)
+    if query_results := find(
+        compute_api=compute_api, wished_server=wished_server, per_page=1
+    ):
+        target_server = query_results[0]
 
-    if not query_results:
+    else:
         changed = True
         if compute_api.module.check_mode:
             return changed, {"status": "A server would be created before being run."}
 
         target_server = create_server(compute_api=compute_api, server=wished_server)
-    else:
-        target_server = query_results[0]
-
     if server_attributes_should_be_changed(compute_api=compute_api, target_server=target_server,
                                            wished_server=wished_server):
         changed = True
 
         if compute_api.module.check_mode:
-            return changed, {"status": "Server %s attributes would be changed before running it." % target_server["id"]}
+            return changed, {
+                "status": f'Server {target_server["id"]} attributes would be changed before running it.'
+            }
 
         target_server = server_change_attributes(compute_api=compute_api, target_server=target_server, wished_server=wished_server)
 
     current_state = fetch_state(compute_api=compute_api, server=target_server)
     if current_state not in ("running", "starting"):
-        compute_api.module.debug("running_strategy: Server in state: %s" % current_state)
+        compute_api.module.debug(f"running_strategy: Server in state: {current_state}")
         changed = True
 
         if compute_api.module.check_mode:
-            return changed, {"status": "Server %s attributes would be changed." % target_server["id"]}
+            return changed, {
+                "status": f'Server {target_server["id"]} attributes would be changed.'
+            }
 
         response = start_server(compute_api=compute_api, server=target_server)
         if not response.ok:
@@ -456,7 +477,8 @@ def stop_strategy(compute_api, wished_server):
 
         if compute_api.module.check_mode:
             return changed, {
-                "status": "Server %s attributes would be changed before stopping it." % target_server["id"]}
+                "status": f'Server {target_server["id"]} attributes would be changed before stopping it.'
+            }
 
         target_server = server_change_attributes(compute_api=compute_api, target_server=target_server, wished_server=wished_server)
 
@@ -464,12 +486,12 @@ def stop_strategy(compute_api, wished_server):
 
     current_state = fetch_state(compute_api=compute_api, server=target_server)
     if current_state not in ("stopped",):
-        compute_api.module.debug("stop_strategy: Server in state: %s" % current_state)
+        compute_api.module.debug(f"stop_strategy: Server in state: {current_state}")
 
         changed = True
 
         if compute_api.module.check_mode:
-            return changed, {"status": "Server %s would be stopped." % target_server["id"]}
+            return changed, {"status": f'Server {target_server["id"]} would be stopped.'}
 
         response = stop_server(compute_api=compute_api, server=target_server)
         compute_api.module.debug(response.json)
@@ -485,17 +507,17 @@ def stop_strategy(compute_api, wished_server):
 def restart_strategy(compute_api, wished_server):
     compute_api.module.debug("Starting restart strategy")
     changed = False
-    query_results = find(compute_api=compute_api, wished_server=wished_server, per_page=1)
+    if query_results := find(
+        compute_api=compute_api, wished_server=wished_server, per_page=1
+    ):
+        target_server = query_results[0]
 
-    if not query_results:
+    else:
         changed = True
         if compute_api.module.check_mode:
             return changed, {"status": "A server would be created before being rebooted."}
 
         target_server = create_server(compute_api=compute_api, server=wished_server)
-    else:
-        target_server = query_results[0]
-
     if server_attributes_should_be_changed(compute_api=compute_api,
                                            target_server=target_server,
                                            wished_server=wished_server):
@@ -503,13 +525,14 @@ def restart_strategy(compute_api, wished_server):
 
         if compute_api.module.check_mode:
             return changed, {
-                "status": "Server %s attributes would be changed before rebooting it." % target_server["id"]}
+                "status": f'Server {target_server["id"]} attributes would be changed before rebooting it.'
+            }
 
         target_server = server_change_attributes(compute_api=compute_api, target_server=target_server, wished_server=wished_server)
 
     changed = True
     if compute_api.module.check_mode:
-        return changed, {"status": "Server %s would be rebooted." % target_server["id"]}
+        return changed, {"status": f'Server {target_server["id"]} would be rebooted.'}
 
     wait_to_complete_state_transition(compute_api=compute_api, server=target_server)
 
@@ -548,12 +571,10 @@ def find(compute_api, wished_server, per_page=1):
                                                   "per_page": per_page})
 
     if not response.ok:
-        msg = 'Error during server search: (%s) %s' % (response.status_code, response.json)
+        msg = f'Error during server search: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
-    search_results = response.json["servers"]
-
-    return search_results
+    return response.json["servers"]
 
 
 PATCH_MUTABLE_SERVER_ATTRIBUTES = (
@@ -567,12 +588,14 @@ PATCH_MUTABLE_SERVER_ATTRIBUTES = (
 
 def server_attributes_should_be_changed(compute_api, target_server, wished_server):
     compute_api.module.debug("Checking if server attributes should be changed")
-    compute_api.module.debug("Current Server: %s" % target_server)
-    compute_api.module.debug("Wished Server: %s" % wished_server)
-    debug_dict = dict((x, (target_server[x], wished_server[x]))
-                      for x in PATCH_MUTABLE_SERVER_ATTRIBUTES
-                      if x in target_server and x in wished_server)
-    compute_api.module.debug("Debug dict %s" % debug_dict)
+    compute_api.module.debug(f"Current Server: {target_server}")
+    compute_api.module.debug(f"Wished Server: {wished_server}")
+    debug_dict = {
+        x: (target_server[x], wished_server[x])
+        for x in PATCH_MUTABLE_SERVER_ATTRIBUTES
+        if x in target_server and x in wished_server
+    }
+    compute_api.module.debug(f"Debug dict {debug_dict}")
     try:
         for key in PATCH_MUTABLE_SERVER_ATTRIBUTES:
             if key in target_server and key in wished_server:
@@ -597,23 +620,30 @@ def server_change_attributes(compute_api, target_server, wished_server):
             # When you are working with dict, only ID matter as we ask user to put only the resource ID in the playbook
             if isinstance(target_server[key], dict) and "id" in target_server[key] and wished_server[key]:
                 # Setting all key to current value except ID
-                key_dict = dict((x, target_server[key][x]) for x in target_server[key].keys() if x != "id")
+                key_dict = {
+                    x: target_server[key][x]
+                    for x in target_server[key].keys()
+                    if x != "id"
+                }
                 # Setting ID to the user specified ID
                 key_dict["id"] = wished_server[key]
                 patch_payload[key] = key_dict
             elif not isinstance(target_server[key], dict):
                 patch_payload[key] = wished_server[key]
 
-    response = compute_api.patch(path="servers/%s" % target_server["id"],
-                                 data=patch_payload)
+    response = compute_api.patch(
+        path=f'servers/{target_server["id"]}', data=patch_payload
+    )
     if not response.ok:
-        msg = 'Error during server attributes patching: (%s) %s' % (response.status_code, response.json)
+        msg = f'Error during server attributes patching: ({response.status_code}) {response.json}'
         compute_api.module.fail_json(msg=msg)
 
     try:
         target_server = response.json["server"]
     except KeyError:
-        compute_api.module.fail_json(msg="Error in getting the server information from: %s" % response.json)
+        compute_api.module.fail_json(
+            msg=f"Error in getting the server information from: {response.json}"
+        )
 
     wait_to_complete_state_transition(compute_api=compute_api, server=target_server)
 

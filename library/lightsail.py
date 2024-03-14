@@ -282,7 +282,7 @@ def create_instance(module, client, instance_name):
 
         # Timed out
         if wait and not changed and wait_max <= time.time():
-            module.fail_json(msg="Wait for instance start timeout at %s" % time.asctime())
+            module.fail_json(msg=f"Wait for instance start timeout at {time.asctime()}")
 
         # Attempt to open ports
         if open_ports:
@@ -361,7 +361,7 @@ def delete_instance(module, client, instance_name):
 
     # Timed out
     if wait and not changed and wait_max <= time.time():
-        module.fail_json(msg="wait for instance delete timeout at %s" % time.asctime())
+        module.fail_json(msg=f"wait for instance delete timeout at {time.asctime()}")
 
     return (changed, inst)
 
@@ -490,7 +490,10 @@ def core(module):
         client = boto3_conn(module, conn_type='client', resource='lightsail',
                             region=region, endpoint=ec2_url, **aws_connect_kwargs)
     except (botocore.exceptions.ClientError, botocore.exceptions.ValidationError) as e:
-        module.fail_json(msg='Failed while connecting to the lightsail service: %s' % e, exception=traceback.format_exc())
+        module.fail_json(
+            msg=f'Failed while connecting to the lightsail service: {e}',
+            exception=traceback.format_exc(),
+        )
 
     changed = False
     state = module.params['state']

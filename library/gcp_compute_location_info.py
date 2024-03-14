@@ -32,10 +32,7 @@ def main():
         module.params['scopes'] = ['https://www.googleapis.com/auth/compute']
 
     items = fetch_list(module, collection(module), query_options(module.params['filters']))
-    if items.get('items'):
-        items = items.get('items')
-    else:
-        items = []
+    items = items.get('items') if items.get('items') else []
     return_value = {'resources': items}
     module.exit_json(**return_value)
 
@@ -56,16 +53,15 @@ def query_options(filters):
 
     if len(filters) == 1:
         return filters[0]
-    else:
-        queries = []
-        for f in filters:
+    queries = []
+    for f in filters:
             # For multiple queries, all queries should have ()
-            if f[0] != '(' and f[-1] != ')':
-                queries.append("(%s)" % ''.join(f))
-            else:
-                queries.append(f)
+        if f[0] == '(' or f[-1] == ')':
+            queries.append(f)
 
-        return ' '.join(queries)
+        else:
+            queries.append(f"({''.join(f)})")
+    return ' '.join(queries)
 
 
 def return_if_object(module, response):
@@ -81,7 +77,7 @@ def return_if_object(module, response):
         module.raise_for_status(response)
         result = response.json()
     except getattr(json.decoder, 'JSONDecodeError', ValueError) as inst:
-        module.fail_json(msg="Invalid JSON response with error: %s" % inst)
+        module.fail_json(msg=f"Invalid JSON response with error: {inst}")
 
     if navigate_hash(result, ['error', 'errors']):
         module.fail_json(msg=navigate_hash(result, ['error', 'errors']))

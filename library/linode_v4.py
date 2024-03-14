@@ -30,16 +30,15 @@ def create_linode(module, client, **kwargs):
     try:
         response = client.linode.instance_create(**kwargs)
     except Exception as exception:
-        module.fail_json(msg='Unable to query the Linode API. Saw: %s' % exception)
+        module.fail_json(msg=f'Unable to query the Linode API. Saw: {exception}')
 
     try:
-        if isinstance(response, tuple):
-            instance, root_pass = response
-            instance_json = instance._raw_json
-            instance_json.update({'root_pass': root_pass})
-            return instance_json
-        else:
+        if not isinstance(response, tuple):
             return response._raw_json
+        instance, root_pass = response
+        instance_json = instance._raw_json
+        instance_json.update({'root_pass': root_pass})
+        return instance_json
     except TypeError:
         module.fail_json(msg='Unable to parse Linode instance creation'
                              ' response. Please raise a bug against this'
@@ -56,7 +55,7 @@ def maybe_instance_from_label(module, client):
     except IndexError:
         return None
     except Exception as exception:
-        module.fail_json(msg='Unable to query the Linode API. Saw: %s' % exception)
+        module.fail_json(msg=f'Unable to query the Linode API. Saw: {exception}')
 
 
 def initialise_module():
@@ -115,7 +114,7 @@ def main():
     if module.params['state'] == 'present' and instance is not None:
         module.exit_json(changed=False, instance=instance._raw_json)
 
-    elif module.params['state'] == 'present' and instance is None:
+    elif module.params['state'] == 'present':
         instance_json = create_linode(
             module, client,
             authorized_keys=module.params['authorized_keys'],
@@ -134,7 +133,7 @@ def main():
         instance.delete()
         module.exit_json(changed=True, instance=instance._raw_json)
 
-    elif module.params['state'] == 'absent' and instance is None:
+    elif module.params['state'] == 'absent':
         module.exit_json(changed=False, instance={})
 
 

@@ -24,7 +24,7 @@ def create_stackscript(module, client, **kwargs):
         response = client.linode.stackscript_create(**kwargs)
         return response._raw_json
     except Exception as exception:
-        module.fail_json(msg='Unable to query the Linode API. Saw: %s' % exception)
+        module.fail_json(msg=f'Unable to query the Linode API. Saw: {exception}')
 
 
 def stackscript_available(module, client):
@@ -41,7 +41,7 @@ def stackscript_available(module, client):
     except IndexError:
         return None
     except Exception as exception:
-        module.fail_json(msg='Unable to query the Linode API. Saw: %s' % exception)
+        module.fail_json(msg=f'Unable to query the Linode API. Saw: {exception}')
 
 
 def initialise_module():
@@ -90,7 +90,7 @@ def main():
     if module.params['state'] == 'present' and stackscript is not None:
         module.exit_json(changed=False, stackscript=stackscript._raw_json)
 
-    elif module.params['state'] == 'present' and stackscript is None:
+    elif module.params['state'] == 'present':
         stackscript_json = create_stackscript(
             module, client,
             label=module.params['label'],
@@ -105,7 +105,7 @@ def main():
         stackscript.delete()
         module.exit_json(changed=True, stackscript=stackscript._raw_json)
 
-    elif module.params['state'] == 'absent' and stackscript is None:
+    elif module.params['state'] == 'absent':
         module.exit_json(changed=False, stackscript={})
 
 
